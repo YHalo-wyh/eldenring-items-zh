@@ -21,14 +21,13 @@ BASE = "https://wiki.biligame.com"
 GAME = "eldenring"
 HDRS = {"User-Agent": "Mozilla/5.0 (ER-Sampler)", "Accept-Language": "zh-CN,zh;q=0.9"}
 
-# 顶层类别索引页（选更稳定/内容更全的入口）
+# 顶层类别索引页
 CATEGORY_INDEX = {
-    "武器": f"/{GAME}/%E6%AD%A6%E5%99%A8%E4%B8%80%E8%A7%88/%E8%BF%91%E6%88%98%E6%AD%A6%E5%99%A8%E7%B1%BB",   # 近战武器类
+    "武器": f"/{GAME}/%E6%AD%A6%E5%99%A8%E4%B8%80%E8%A7%88/%E8%BF%91%E6%88%98%E6%AD%A6%E5%99%A8%E7%B1%BB",
     "防具": f"/{GAME}/%E9%98%B2%E5%85%B7%E4%B8%80%E8%A7%88",
     "护符": f"/{GAME}/%E6%8A%A4%E7%AC%A6%E4%B8%80%E8%A7%88",
     "物品": f"/{GAME}/%E7%89%A9%E5%93%81%E4%B8%80%E8%A7%88",
     "法术": f"/{GAME}/%E6%B3%95%E6%9C%AF%E4%B8%80%E8%A7%88",
-    # 战灰目录分散，直接从“战灰：××文本”类条目反向采集
     "战灰": f"/{GAME}/%E6%88%98%E7%81%B0%EF%BC%9A%E5%B2%A9%E7%9F%B3%E5%89%91%E6%96%87%E6%9C%AC",
 }
 
@@ -86,7 +85,7 @@ def extract_lines(soup: BeautifulSoup) -> list[str]:
       消耗专注值 3（-/-）
       重量 3.5
     - 过滤孤立纯数值行（避免 3（-/-）/3.5 重复）。
-    - 控制在前 ~8 行，避免把“简介/获取”正文段带进来。
+    - 控制在前 ~8 行。
     """
     block_txt = ""
     for tb in soup.select(".mw-parser-output table, .wikitable"):
@@ -130,7 +129,7 @@ def extract_tables(soup: BeautifulSoup) -> dict:
         sc = re.search(r"能力加成(.+?)必需能力值", txt, flags=re.S)
         rq = re.search(r"必需能力值(.+?)(附加效果|简介|获取|$)", txt, flags=re.S)
         def parse(seg):
-            res=[]; 
+            res=[]
             if not seg: return res
             for ln in seg.splitlines():
                 ln=ln.strip()
@@ -157,7 +156,8 @@ def md_render(category, title, url, icon_url, lines, tables) -> str:
     t2md("能力加成", tables.get("scaling"))
     t2md("必需能力值", tables.get("req"))
     md.append("> 来源：该条目的公开百科页面（保留署名以符合 CC BY-NC-SA 4.0）。")
-    md.append(f"> {url}\n")
+    md.append(f"> {url}")
+    md.append("")
     return "\n".join(md)
 
 def collect_detail_links_from_page(url: str, want: int) -> list[tuple[str,str]]:
@@ -169,10 +169,10 @@ def collect_detail_links_from_page(url: str, want: int) -> list[tuple[str,str]]:
         if not href or not title: continue
         if bad(href) or bad(title): continue
         if href.startswith("#"): continue
-        fullu = full(href)
-        if f"/{GAME}/" not in fullu: continue
+        fu = full(href)
+        if f"/{GAME}/" not in fu: continue
         if 1 < len(title) <= 20:
-            links.append((title, fullu))
+            links.append((title, fu))
     # 去重并截取
     seen=set(); uniq=[]
     for t,u in links:
@@ -220,7 +220,7 @@ def main():
     summary = {}
     for cate in args.categories:
         idx = CATEGORY_INDEX.get(cate)
-        if not idx: 
+        if not idx:
             print(f"[跳过] 未知类别 {cate}")
             continue
         index_url = full(idx)
@@ -242,13 +242,11 @@ def main():
                 md_path = os.path.join("items", cate, f"{slug}.md")
                 os.makedirs(os.path.dirname(md_path), exist_ok=True)
 
-                icon_rel = None
+                icon_md = None
                 if icon:
                     icon_rel = os.path.join("images", cate, f"{slug}.png")
                     download(icon, icon_rel)
                     icon_md = "/" + icon_rel.replace("\\", "/")
-                else:
-                    icon_md = None
 
                 md = md_render(cate, real_title, url, icon_md, lines, tables)
                 with open(md_path, "w", encoding="utf-8") as f:
@@ -264,9 +262,11 @@ def main():
     # 生成首页索引
     lines=["# 物品索引（样例，每类 3 个）", ""]
     for cate, items in summary.items():
-        lines.append(f"## {cate}（{len(items)}）\n")
+        lines.append(f"## {cate}（{len(items)}）")
+        lines.append("")
         for t, p in items:
-            lines.append(f"- [{t}]({p.replace('\\', '/')})")
+            path_for_md = p.replace("\\", "/")   # <- 先转换，避免 f-string 表达式中出现反斜杠
+            lines.append(f"- [{t}]({path_for_md})")
         lines.append("")
     with open("README.md", "w", encoding="utf-8") as f:
         f.write("\n".join(lines))
