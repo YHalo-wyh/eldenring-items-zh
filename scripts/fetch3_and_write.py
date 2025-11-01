@@ -233,12 +233,15 @@ def wipe_repo_except(keep: list):
             except Exception: pass
 
 def md_table_from_pairs(title: str, kv: dict) -> str:
-    if not kv: return ""
-    rows = [f"### {title}", "", "| 项目 | 数值 |", "|---|---|"]
+    if not kv:
+        return ""
+    # 列左对齐：:--- 语法（GFM 支持）
+    rows = [f"### {title}", "", "| 项目 | 数值 |", "|:---|:---|"]
     for k, v in kv.items():
         rows.append(f"| {k} | {v} |")
     rows.append("")
     return "\n".join(rows)
+
 
 def write_repo(items: list):
     wipe_repo_except([".github", "scripts"])
