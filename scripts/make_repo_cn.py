@@ -104,20 +104,28 @@ def extract_image_and_desc(html_text: str, title: str):
     return img_url, desc
 
 def write_md(root: pathlib.Path, folder: str, title: str, filename: str, img: str, desc: str):
+    from urllib.parse import quote
     url = f"{BASE}/{quote(title, safe='')}"
     tlabel = TYPE_LABEL.get(folder, "物品")
-    # 把正文用引用块包住，接近你发的截图排版
+
+    # ✅ 在 f-string 外先把说明转成引用块
+    desc_block = ""
+    if desc:
+        desc_block = "> " + "\n> ".join(desc.splitlines())
+
     body = f"""# {title}
 ![icon]({img})
 
 - 类型：{tlabel}  
 - 数据源：{url}
 
-> {desc.replace('\n', '\n> ')}
+{desc_block}
 """
+
     out = root / "items" / folder
     out.mkdir(parents=True, exist_ok=True)
     (out / filename).write_text(body, encoding="utf-8")
+
 
 def ensure_root(root: pathlib.Path):
     (root / "scripts").mkdir(parents=True, exist_ok=True)
