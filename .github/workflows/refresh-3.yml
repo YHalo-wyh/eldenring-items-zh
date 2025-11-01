@@ -18,19 +18,11 @@ jobs:
           python -m pip install --upgrade pip
           pip install requests beautifulsoup4
 
-      - name: Clean repo (keep workflows and scripts)
-        shell: bash
-        run: |
-          set -e
-          find . -mindepth 1 -maxdepth 1 \
-            -not -name '.git' -not -name '.github' -not -name 'scripts' \
-            -exec rm -rf {} +
-
-      - name: Generate 3 items (md + images hotlink + intro)
+      - name: Generate 3 items (dedupe + local images)
         run: |
           python scripts/fetch3_and_write.py
 
       - name: Commit & push changes
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "reset repo to 3 sample items (weapons)"
+          commit_message: "reset repo to 3 unique weapon samples (with local images)"
