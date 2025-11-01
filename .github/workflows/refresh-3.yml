@@ -1,0 +1,36 @@
+name: refresh-3-samples
+on:
+  workflow_dispatch: {}
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests beautifulsoup4
+
+      - name: Clean repo (keep workflows and scripts)
+        shell: bash
+        run: |
+          set -e
+          find . -mindepth 1 -maxdepth 1 \
+            -not -name '.git' -not -name '.github' -not -name 'scripts' \
+            -exec rm -rf {} +
+
+      - name: Generate 3 items (md + images hotlink + intro)
+        run: |
+          python scripts/fetch3_and_write.py
+
+      - name: Commit & push changes
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "reset repo to 3 sample items (weapons)"
