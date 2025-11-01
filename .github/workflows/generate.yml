@@ -1,0 +1,33 @@
+name: generate-items
+on:
+  workflow_dispatch: {}          # 手动“Run workflow”立即运行
+permissions:
+  contents: write                # 允许把生成结果推回仓库
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests beautifulsoup4
+
+      - name: Run generator scripts
+        run: |
+          # 你的仓库里已有这个索引脚本
+          # https://github.com/.../scripts/gen_index.py 见这里的结构和入口
+          # （若你同时放了 make_repo_cn.py / make_repo.py，这里也一起调用）
+          if [ -f scripts/make_repo_cn.py ]; then python scripts/make_repo_cn.py; fi
+          if [ -f scripts/make_repo.py ]; then python scripts/make_repo.py; fi
+          python scripts/gen_index.py
+
+      - name: Commit & push changes
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore: auto-generate items from BWIKI"
