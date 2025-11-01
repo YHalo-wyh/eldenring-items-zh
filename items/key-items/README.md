@@ -1,3 +1,3 @@
-# 关键道具（Key Items）
+# key-items
 
-- [黄金种子](golden-seed.md)
+- [golden-seed](./golden-seed.md)

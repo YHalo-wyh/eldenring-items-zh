@@ -1,3 +1,3 @@
-# 护符（Talismans）
+# talismans
 
-- [黄金树的恩惠](erdtree-favor.md)
+- [erdtree-favor](./erdtree-favor.md)

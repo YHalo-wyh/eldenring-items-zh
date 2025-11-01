@@ -1,4 +1,4 @@
-# 消耗品（Consumables）
+# consumables
 
-- [红露滴圣杯瓶](crimson-tears.md)
-- [蓝露滴圣杯瓶](cerulean-tears.md)
+- [cerulean-tears](./cerulean-tears.md)
+- [crimson-tears](./crimson-tears.md)

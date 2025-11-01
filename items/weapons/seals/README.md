@@ -1,3 +1,3 @@
-# 圣印（Seals）
+# seals
 
-- [巨人圣印记](giants-seal.md)
+- [giants-seal](./giants-seal.md)
