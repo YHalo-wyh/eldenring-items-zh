@@ -268,29 +268,59 @@ def write_repo(items: list):
         wt = it.get("type_info",{}).get("weight","")
         intro_block = ("> " + "\n> ".join(it["intro"].splitlines())) if it.get("intro") else ""
 
+              # ===== 顶部信息块（按你要的结构） =====
         body = []
         body.append(f"# {it['name']}")
-        if rel_img: body.append(f"![icon]({rel_img})")
+        if rel_img:
+            body.append(f"![icon]({rel_img})")
         body.append("")
-        body.append(f"- **武器品质**：{it.get('quality','')}")
-        body.append(f"- **类型**：{type_block}")
-        body.append(f"- **FP**：{fp}    |    **重量**：{wt}")
-        body.append("")
+
+        # 逐行信息
+        body.append(f"武器品质: {it.get('quality','')}".strip())
+        # 类型/战技行：例如 “短剑”“斩击/突刺”
+        type_lines = it.get("type_info", {}).get("lines", []) or []
+        for ln in type_lines:
+            ln = ln.strip()
+            if ln:
+                body.append(ln)
+
+        # 专属战技名单独占一行（例如“黄金刀刃”）
+        if it.get("ash_of_war"):
+            body.append(it["ash_of_war"])
+
+        # FP / 重量
+        fp = it.get("type_info", {}).get("fp", "")
+        wt = it.get("type_info", {}).get("weight", "")
+        if fp:
+            body.append(f"消耗专注值 {fp}".strip())
+        if wt:
+            body.append(f"重量 {wt}".strip())
+
+        body.append("")  # 空行分隔
+
+        # ===== 四张表（左对齐列头“项目/数值”）=====
         body.append(md_table_from_pairs("攻击力", it.get("attack", {})))
         body.append(md_table_from_pairs("防御时减伤率", it.get("guard", {})))
         body.append(md_table_from_pairs("能力加成", it.get("scaling", {})))
         body.append(md_table_from_pairs("必需能力值", it.get("requirements", {})))
-        if it.get("extra_effect"): body.append(f"**附加效果**：{it['extra_effect']}\n")
-        if intro_block: body.append(intro_block + "\n")
-        if it.get("location"): body.append(f"**获取地点**：{it['location']}\n")
-        if it.get("ash_of_war"): body.append(f"**专属战技**：{it['ash_of_war']}  \n{it.get('ash_desc','')}\n")
-        if it.get("upgrade"): body.append(f"**武器使用强化石类型**：{it['upgrade']}\n")
-        (md_root / f"{slug}.md").write_text("\n".join([b for b in body if b is not None]), encoding="utf-8")
 
-    (root / "ATTRIBUTION.md").write_text(
-        "# Attribution\n\n本仓库中演示样例的文本与术语整理自公开资料，仅供非商业研究与学习。\n",
-        encoding="utf-8"
-    )
+        # ===== 其余文本块（可留可去）=====
+        if it.get("extra_effect"):
+            body.append(f"**附加效果**：{it['extra_effect']}\n")
+        if it.get("intro"):
+            intro_block = "> " + "\n> ".join(it["intro"].splitlines())
+            body.append(intro_block + "\n")
+        if it.get("location"):
+            body.append(f"**获取地点**：{it['location']}\n")
+        if it.get("ash_of_war") and it.get("ash_desc"):
+            body.append(f"**专属战技说明**：{it['ash_desc']}\n")
+        if it.get("upgrade"):
+            body.append(f"**武器使用强化石类型**：{it['upgrade']}\n")
+
+        (md_root / f"{slug}.md").write_text(
+            "\n".join([b for b in body if b is not None]), encoding="utf-8"
+        )
+
 
 def main():
     try:
