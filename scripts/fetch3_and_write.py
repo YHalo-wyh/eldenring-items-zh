@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 抓取“武器一览”里标题不重复的前 3 件武器 → 解析整块信息 → 下载首图到本地 →
-生成仅 3 条样例的目录与 Markdown。（适用于 GitHub Actions 零参数运行）
+生成仅 3 条样例目录与 Markdown。（适用于 GitHub Actions 零参数运行）
 
 依赖：
     pip install requests beautifulsoup4
@@ -12,7 +12,6 @@ import os
 import re
 import sys
 import time
-import json
 import pathlib
 from urllib.parse import urljoin, urlparse, parse_qs, unquote
 
@@ -23,7 +22,7 @@ from bs4 import BeautifulSoup
 INDEX_URL = "https://wiki.biligame.com/eldenring/%E6%AD%A6%E5%99%A8%E4%B8%80%E8%A7%88"
 LIMIT = 3
 DELAY = 0.8
-HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) ER-Items-Fetch/1.3"}
+HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) ER-Items-Fetch/1.4"}
 BAD_PREFIXES = ("特殊:", "分类:", "Category:", "模板", "Template:", "文件:", "File:", "MediaWiki:", "帮助:", "Help:")
 
 # -------------------- HTTP & HTML --------------------
@@ -115,41 +114,47 @@ def pick_first_n_items_unique(index_url: str, n: int = 3):
 
 # -------------------- 解析物品页 --------------------
 def extract_fp_weight_and_lines(table) -> tuple[str, str, list]:
-    """从卡片左侧信息单元格解析 FP / 重量 / 类型行（更鲁棒，带兜底）"""
+    """
+    从信息卡左侧单元格解析“类型行”，并提取 FP/重量。
+    - 为了不把右侧浮动的数值（3（-/-）、3.5 等）当成类型行，先把 style 含 'float:right' 的节点删掉
+    - 类型行里去掉“消耗专注值/重量”标签行，只保留武器种类/攻击形态/战技名等
+    - FP/重量本身从整表文本兜底解析，保证能拿到数值
+    """
     fp = wt = ""
     lines = []
 
-    # 先找“左大单元格”（含多行“短剑/流派/战技名”等）
+    # 复制一份左 td 的 HTML，再在副本上删除右浮动数值节点
     left_td = None
     for tr in table.find_all("tr"):
         tds = tr.find_all("td")
-        if len(tds) == 2 and len(list(tds[0].stripped_strings)) >= 3:
+        if len(tds) == 2 and len(list(tds[0].stripped_strings)) >= 2:
             left_td = tds[0]
             break
 
     if left_td:
-        raw = [ln.strip() for ln in text_with_newlines(left_td).splitlines() if ln.strip()]
-        for ln in raw:
-            if ln.startswith("消耗专注值"):
-                m = re.search(r"消耗专注值\s*([^\n\r]+)", ln)
-                fp = (m.group(1).strip() if m else ln.replace("消耗专注值", "").strip())
-            elif ln.startswith("重量"):
-                m = re.search(r"重量\s*([0-9.]+(?:[^\n\r]*)?)", ln)
-                wt = (m.group(1).strip() if m else ln.replace("重量", "").strip())
-            else:
-                lines.append(ln)
+        left_clone = BeautifulSoup(str(left_td), "html.parser")
+        # 删除右浮动的数字块
+        for n in left_clone.select('[style*="float:right"]'):
+            n.decompose()
+        # 得到干净的行
+        raw_lines = [ln.strip() for ln in text_with_newlines(left_clone).splitlines() if ln.strip()]
+        for ln in raw_lines:
+            if ln.startswith("消耗专注值") or ln.startswith("重量"):
+                continue  # 标签行去掉（真正的数值我们单独解析）
+            lines.append(ln)
 
-    # 兜底，全表再搜
-    if not fp or not wt:
-        full = text_with_newlines(table)
-        if not fp:
-            m = re.search(r"消耗专注值\s*([^\n\r]+)", full)
-            if m:
-                fp = m.group(1).strip()
-        if not wt:
-            m = re.search(r"重量\s*([0-9.]+(?:[^\n\r]*)?)", full)
-            if m:
-                wt = m.group(1).strip()
+    # 从整表文本兜底解析 FP / 重量
+    full = text_with_newlines(table)
+    m = re.search(r"消耗专注值\s*([^\n\r]+)", full)
+    if m:
+        fp = m.group(1).strip()
+    m = re.search(r"重量\s*([0-9.]+(?:[^\n\r]*)?)", full)
+    if m:
+        wt = m.group(1).strip()
+
+    # 防止仍有“孤儿数值行”混进来：把刚提取到的 fp/wt 与行做比对，若行等于它们则剔除
+    norm = lambda s: re.sub(r"\s+", "", s or "")
+    lines = [ln for ln in lines if norm(ln) not in {norm(fp), norm(wt)}]
 
     return fp, wt, lines
 
@@ -169,7 +174,7 @@ def parse_item_html(html: str) -> dict:
     rows = table.find_all("tr")
     row_tds = lambda i: rows[i].find_all("td") if 0 <= i < len(rows) else []
 
-    # 品质（从整表文本找）
+    # 品质
     whole = text_with_newlines(table)
     m_q = re.search(r"武器品质[:：]?\s*([^\s\n]+)", whole)
     if m_q:
@@ -337,12 +342,15 @@ def write_repo(items: list[dict]):
         rel_img = os.path.relpath(img_path, md_root) if img_path else ""
 
         quality = it.get("quality", "")
-        type_lines = (it.get("type_info", {}).get("lines", []) or [])
-        ash = it.get("ash_of_war", "")
+        # 过滤掉与专属战技重复的类型行
+        ash = it.get("ash_of_war", "") or ""
+        type_lines_raw = (it.get("type_info", {}).get("lines", []) or [])
+        type_lines = [ln for ln in type_lines_raw if ln.strip() and ln.strip() != ash]
+
         fp = it.get("type_info", {}).get("fp", "")
         wt = it.get("type_info", {}).get("weight", "")
 
-        section1 = hardbreak_block([f"武器品质: {quality}", *type_lines])  # 逐行竖排
+        section1 = hardbreak_block([f"武器品质: {quality}", *type_lines])  # 逐行竖排（不含孤儿数值）
         section2 = hardbreak_block([ash]) if ash else ""
         section3 = hardbreak_block([f"消耗专注值 {fp}".strip(), f"重量 {wt}".strip()])
 
