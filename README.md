@@ -1,37 +1,8 @@
-# 物品索引（样例，每类 3 个）
+# 艾尔登法环 · 物品手册（多分类样例）
 
-## 武器（3）
-
-- [五指剑](items/武器/五指剑.md)
-- [使命短刀](items/武器/使命短刀.md)
-- [匕首](items/武器/匕首.md)
-
-## 防具（3）
-
-- [首页](items/防具/首页.md)
-- [居民头巾](items/防具/居民头巾.md)
-- [居民头巾（轻装）](items/防具/居民头巾-轻装.md)
-
-## 护符（3）
-
-- [首页](items/护符/首页.md)
-- [红琥珀链坠](items/护符/红琥珀链坠.md)
-- [红琥珀链坠＋１](items/护符/红琥珀链坠-１.md)
-
-## 物品（3）
-
-- [首页](items/物品/首页.md)
-- [红露滴圣杯瓶](items/物品/红露滴圣杯瓶.md)
-- [蓝露滴圣杯瓶](items/物品/蓝露滴圣杯瓶.md)
-
-## 法术（3）
-
-- [首页](items/法术/首页.md)
-- [责罚荆棘](items/法术/责罚荆棘.md)
-- [罪恶荆棘](items/法术/罪恶荆棘.md)
-
-## 战灰（3）
-
-- [首页](items/战灰/首页.md)
-- [Map](items/战灰/Map.md)
-- [流浪骑士](items/战灰/流浪骑士.md)
+- [武器](items/weapons/README.md)
+- [防具](items/armors/README.md)
+- [护符](items/talismans/README.md)
+- [物品](items/items/README.md)
+- [法术](items/spells/README.md)
+- [战灰](items/ashes/README.md)
