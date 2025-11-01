@@ -1,31 +1,37 @@
-# 艾尔登法环 · 物品样例（各大类 3 条）
+# 物品索引（样例，每类 3 个）
 
-## 武器（示例）
+## 武器（3）
 
-- [武器一览](docs/武器/Wu-Qi-Yi-Lan.md)
-- [“武器一览”的版本历史](docs/武器/Wu-Qi-Yi-Lan-De-Ban-Ben-Li-Shi.md)
+- [五指剑](items/武器/五指剑.md)
+- [使命短刀](items/武器/使命短刀.md)
+- [匕首](items/武器/匕首.md)
 
-## 防具（示例）
+## 防具（3）
 
-- [防具一览](docs/防具/Fang-Ju-Yi-Lan.md)
-- [“防具一览”的版本历史](docs/防具/Fang-Ju-Yi-Lan-De-Ban-Ben-Li-Shi.md)
+- [首页](items/防具/首页.md)
+- [居民头巾](items/防具/居民头巾.md)
+- [居民头巾（轻装）](items/防具/居民头巾-轻装.md)
 
-## 护符（示例）
+## 护符（3）
 
-- [护符一览](docs/护符/Hu-Fu-Yi-Lan.md)
-- [“护符一览”的版本历史](docs/护符/Hu-Fu-Yi-Lan-De-Ban-Ben-Li-Shi.md)
+- [首页](items/护符/首页.md)
+- [红琥珀链坠](items/护符/红琥珀链坠.md)
+- [红琥珀链坠＋１](items/护符/红琥珀链坠-１.md)
 
-## 法术（示例）
+## 物品（3）
 
-- [法术一览](docs/法术/Fa-Zhu-Yi-Lan.md)
-- [“法术一览”的版本历史](docs/法术/Fa-Zhu-Yi-Lan-De-Ban-Ben-Li-Shi.md)
+- [首页](items/物品/首页.md)
+- [红露滴圣杯瓶](items/物品/红露滴圣杯瓶.md)
+- [蓝露滴圣杯瓶](items/物品/蓝露滴圣杯瓶.md)
 
-## 战灰（示例）
+## 法术（3）
 
-- [战灰一览](docs/战灰/Zhan-Hui-Yi-Lan.md)
-- [“战灰一览”的版本历史](docs/战灰/Zhan-Hui-Yi-Lan-De-Ban-Ben-Li-Shi.md)
+- [首页](items/法术/首页.md)
+- [责罚荆棘](items/法术/责罚荆棘.md)
+- [罪恶荆棘](items/法术/罪恶荆棘.md)
 
-## 物品（示例）
+## 战灰（3）
 
-- [物品一览](docs/物品/Wu-Pin-Yi-Lan.md)
-- [“物品一览”的版本历史](docs/物品/Wu-Pin-Yi-Lan-De-Ban-Ben-Li-Shi.md)
+- [首页](items/战灰/首页.md)
+- [Map](items/战灰/Map.md)
+- [流浪骑士](items/战灰/流浪骑士.md)
