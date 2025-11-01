@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-# 抓取“武器一览”里出现的前3个武器 → 解析 → 仅生成三条样例的 Markdown/目录/README
+# 抓取“武器一览”里标题不重复的前3个武器 → 下载首图到本地 → 生成仅3条样例目录/MD
 # 依赖：pip install requests beautifulsoup4
 
-import json, re, sys, time, pathlib
+import json, re, sys, time, pathlib, os
 from urllib.parse import urljoin, urlparse, parse_qs, unquote
 import requests
 from bs4 import BeautifulSoup
@@ -44,18 +44,14 @@ def parse_item_html(html: str) -> dict:
     data["name"] = h1.get_text(strip=True) if h1 else ""
     table = soup.select_one(".mw-parser-output table.wikitable")
     if not table: return ensure_keys(data)
-
-    rows = table.find_all("tr"); row_tds = lambda i: rows[i].find_all("td") if 0 <= i < len(rows) else []
+    rows = table.find_all("tr")
+    def row_tds(i): return rows[i].find_all("td") if 0 <= i < len(rows) else []
     i = 0
     while i < len(rows):
         row = rows[i]; row_txt = text_with_newlines(row); tds = row.find_all("td")
-
-        # 品质
         if i <= 2 and ("武器品质" in row_txt or "品质" in row_txt):
             m = re.search(r"武器品质[:：]\s*([^\s\n]+)", row_txt)
             if m: data["quality"] = m.group(1)
-
-        # 类型/战技/FP/重量 + 图片
         if len(tds) == 2 and i <= 4:
             left, right = tds
             img = right.select_one("img")
@@ -74,52 +70,36 @@ def parse_item_html(html: str) -> dict:
                 "fp": fp.group(1).strip() if fp else "",
                 "weight": wt.group(1).strip() if wt else ""
             }
-
-        # 攻击/减伤
         if "攻击力" in row_txt and "减伤率" in row_txt:
             t2 = row_tds(i+1)
             if len(t2) == 2:
                 data["attack"] = pair_by_sequence(list(t2[0].stripped_strings))
                 data["guard"]  = pair_by_sequence(list(t2[1].stripped_strings))
             i += 1
-
-        # 能力加成/必需能力值
         if "能力加成" in row_txt and "必需能力值" in row_txt:
             t2 = row_tds(i+1)
             if len(t2) == 2:
                 data["scaling"] = pair_by_sequence(list(t2[0].stripped_strings))
                 data["requirements"] = pair_by_sequence(list(t2[1].stripped_strings))
             i += 1
-
-        # 附加效果
         if row_txt.strip() == "附加效果":
             t2 = row_tds(i+1)
             if t2: data["extra_effect"] = text_with_newlines(t2[0]); i += 1
-
-        # 简介
         if row_txt.strip() == "简介":
             t2 = row_tds(i+1)
             if t2: data["intro"] = text_with_newlines(t2[0]); i += 1
-
-        # 获取地点
         if row_txt.strip() == "获取地点":
             t2 = row_tds(i+1)
             if t2: data["location"] = text_with_newlines(t2[0]); i += 1
-
-        # 专属战技
         if row_txt.strip().startswith("专属战技"):
             m = re.match(r"专属战技[-：:]\s*(.+)", row_txt.strip())
             if m: data["ash_of_war"] = m.group(1).strip()
             t2 = row_tds(i+1)
             if t2: data["ash_desc"] = text_with_newlines(t2[0]); i += 1
-
-        # 强化石类型
         if row_txt.strip() == "武器使用强化石类型":
             t2 = row_tds(i+1)
             if t2: data["upgrade"] = text_with_newlines(t2[0]); i += 1
-
         i += 1
-
     return ensure_keys(data)
 
 def ensure_keys(d: dict) -> dict:
@@ -130,54 +110,109 @@ def ensure_keys(d: dict) -> dict:
     }
     out = dict(defaults); out.update(d); out.setdefault("name",""); return out
 
+def parse_title_from_href(href: str) -> str:
+    if "/index.php" in href:
+        return unquote(parse_qs(urlparse(href).query).get("title", [""])[0])
+    return unquote(href.split("/eldenring/", 1)[1])
+
 def is_item_link(href: str) -> bool:
     if not href or not href.startswith("/eldenring/"): return False
-    if "/index.php" in href:
-        title = unquote(parse_qs(urlparse(href).query).get("title", [""])[0])
-    else:
-        title = unquote(href.split("/eldenring/", 1)[1])
+    title = parse_title_from_href(href)
     if any(title.startswith(p) for p in BAD_PREFIXES): return False
     if title in ("首页","武器一览","防具一览","护符一览","物品一览","法术一览"): return False
     return bool(title.strip())
 
-def pick_first_n_items(index_url: str, n: int = 3):
+def pick_first_n_items_unique(index_url: str, n: int = 3):
     base = "{u.scheme}://{u.netloc}".format(u=urlparse(index_url))
     soup = soup_of(index_url)
     content = soup.select_one("#mw-content-text .mw-parser-output") or soup.select_one(".mw-parser-output") or soup
-    found, seen = [], set()
+    found, seen_titles = [], set()
     for a in content.find_all("a", href=True):
-        if is_item_link(a["href"]):
-            url = urljoin(base, a["href"]); name = a.get_text(strip=True) or url
-            if (name,url) in seen: continue
-            seen.add((name,url)); found.append((name,url))
-            if len(found) >= n: break
+        href = a["href"]
+        if not is_item_link(href): continue
+        title = parse_title_from_href(href).strip()
+        if title in seen_titles: continue     # ← 关键：按页面标题去重
+        seen_titles.add(title)
+        url = urljoin(base, href)
+        name = a.get_text(strip=True) or title
+        found.append((name, url, title))
+        if len(found) >= n: break
     return found
 
 def safe_filename(name: str) -> str:
     return re.sub(r"[\\/<>:\"|?*]+", "_", name).strip() or "unknown"
 
-def write_repo(items: list):
+def upgrade_thumb(url: str, size: int = 256) -> str:
+    # 将 /80px-xxx.png 提升到 /256px-xxx.png（若不存在则仍可 404 回退到原图下载）
+    return re.sub(r"/(\d+)px-", f"/{size}px-", url)
+
+def download_image(url: str, out_dir: pathlib.Path) -> str:
+    out_dir.mkdir(parents=True, exist_ok=True)
+    # 优先用大些的缩略图
+    url_try = upgrade_thumb(url, 256)
+    try_urls = [url_try, url]
+    for u in try_urls:
+        uu = u if u.startswith("http") else ("https:" + u if u.startswith("//") else u)
+        try:
+            r = requests.get(uu, headers=HEADERS, timeout=25)
+            r.raise_for_status()
+            ext = os.path.splitext(urlparse(uu).path)[1] or ".png"
+            p = out_dir / f"icon{ext}"
+            with open(p, "wb") as f:
+                f.write(r.content)
+            return str(p)
+        except Exception:
+            continue
+    return ""
+
+def wipe_repo_except(keep: list):
+    """删除仓库根目录下的所有文件/目录，除了 keep 名称列表。"""
     root = pathlib.Path(".")
-    # 根 README
-    root.read_text(encoding="utf-8") if (root / "README.md").exists() else None
+    for p in root.iterdir():
+        if p.name in keep: continue
+        if p.name == ".git": continue
+        if p.is_dir():
+            for _ in range(3):
+                try:
+                    import shutil; shutil.rmtree(p, ignore_errors=False)
+                    break
+                except Exception: time.sleep(0.2)
+        else:
+            try: p.unlink()
+            except Exception: pass
+
+def write_repo(items: list):
+    # 清空（保留 .github 与 scripts）
+    wipe_repo_except([".github", "scripts"])
+
+    root = pathlib.Path(".")
     (root / "README.md").write_text(
         "# 艾尔登法环 · 物品手册（演示样例）\n\n- 目录： [武器（样例）](items/weapons/README.md)\n",
         encoding="utf-8"
     )
-    # 分类与条目
+
+    # 列表页
     md_root = root / "items" / "weapons"; md_root.mkdir(parents=True, exist_ok=True)
-    (md_root / "README.md").write_text(
-        "# 武器（样例，仅3件）\n\n" + "\n".join(
-            f"- [{it['name']}](./{safe_filename(it['name'])}.md)" for it in items
-        ) + "\n",
-        encoding="utf-8"
-    )
+    lines = ["# 武器（样例，仅3件）", ""]
     for it in items:
-        fname = safe_filename(it["name"]) + ".md"
-        desc_block = ("> " + "\n> ".join(it["intro"].splitlines())) if it.get("intro") else ""
+        lines.append(f"- [{it['name']}](./{safe_filename(it['name'])}.md)")
+    (md_root / "README.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    # 逐个物品页 + 本地图片
+    for it in items:
+        slug = safe_filename(it["name"])
+        assets_dir = root / "assets" / "weapons" / slug
+        img_url = it.get("image","")
+        img_path = download_image(img_url, assets_dir) if img_url else ""
+        rel_img = os.path.relpath(img_path, md_root) if img_path else ""
+
+        desc_block = ""
+        if it.get("intro"):
+            desc_block = "> " + "\n> ".join(it["intro"].splitlines())
+
         body = (
             f"# {it['name']}\n"
-            f"![icon]({it.get('image','')})\n\n"
+            f"{f'![icon]({rel_img})' if rel_img else ''}\n\n"
             f"- 品质：{it.get('quality','')}\n"
             f"- 类型：{'、'.join(it.get('type_info',{}).get('lines', []))}\n"
             f"- FP：{it.get('type_info',{}).get('fp','')}  |  重量：{it.get('type_info',{}).get('weight','')}\n\n"
@@ -185,25 +220,27 @@ def write_repo(items: list):
             f"**获取地点**：{it.get('location','')}\n\n"
             f"**专属战技**：{it.get('ash_of_war','')}  \n{it.get('ash_desc','')}\n"
         )
-        (md_root / fname).write_text(body, encoding="utf-8")
+        (md_root / f"{slug}.md").write_text(body, encoding="utf-8")
 
-    # 集中署名（低调放根目录）
+    # 可选：集中署名（合规、低调）
     (root / "ATTRIBUTION.md").write_text(
-        "# Attribution\n\n本仓库中演示样例的说明文本与术语来自公开 Wiki 页面，仅供非商业研究与学习；如有侵权请联系移除。\n",
+        "# Attribution\n\n本仓库中演示样例的文本与术语整理自公开 Wiki 页面，仅供非商业研究与学习。\n",
         encoding="utf-8"
     )
 
 def main():
     try:
-        pairs = pick_first_n_items(INDEX_URL, LIMIT)
+        triples = pick_first_n_items_unique(INDEX_URL, LIMIT)
     except Exception as e:
         sys.stderr.write(f"[warn] 目录页抓取失败：{e}\n")
         base = "https://wiki.biligame.com/eldenring/"
-        pairs = [("鲜血旋流", base+"%E9%B2%9C%E8%A1%80%E6%97%8B%E6%B5%81"),
-                 ("王室巨剑", base+"%E7%8E%8B%E5%AE%A4%E5%B7%A8%E5%89%91"),
-                 ("白王剑",   base+"%E7%99%BD%E7%8E%8B%E5%89%91")]
+        triples = [
+            ("鲜血旋流", base+"%E9%B2%9C%E8%A1%80%E6%97%8B%E6%B5%81", "鲜血旋流"),
+            ("王室巨剑", base+"%E7%8E%8B%E5%AE%A4%E5%B7%A8%E5%89%91", "王室巨剑"),
+            ("使命短刀", base+"%E4%BD%BF%E5%91%BD%E7%9F%AD%E5%88%80", "使命短刀"),
+        ]
     results = []
-    for name, url in pairs:
+    for name, url, _title in triples:
         try:
             data = parse_item_html(get_html(url))
             if not data.get("name"): data["name"] = name
@@ -212,7 +249,6 @@ def main():
             sys.stderr.write(f"[warn] 解析失败：{name} -> {url} -> {e}\n")
         time.sleep(DELAY)
 
-    # 只保留3条，写入仓库结构
     write_repo(results)
 
 if __name__ == "__main__":
