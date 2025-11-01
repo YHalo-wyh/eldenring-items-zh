@@ -1,0 +1,70 @@
+name: Fetch Elden Ring Samples
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "scripts/**"
+      - ".github/workflows/**"
+
+# 需要写权限才能把抓取结果 push 回仓库
+permissions:
+  contents: write
+
+concurrency:
+  group: fetch-samples
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # 需要完整历史以便 push
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests beautifulsoup4
+
+      # 如果你有 requirements.txt，用下面两行替换上面：
+      # - name: Install dependencies
+      #   run: |
+      #     python -m pip install --upgrade pip
+      #     pip install -r requirements.txt
+
+      - name: Run fetcher (all categories, 3 items each)
+        run: |
+          python scripts/fetch_samples_all_categories.py
+
+      - name: Show git status
+        run: |
+          git status
+          git diff --name-only || true
+
+      - name: Commit and push changes (if any)
+        id: commit
+        run: |
+          if [[ -n "$(git status --porcelain)" ]]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add -A
+            git commit -m "chore: refresh samples (auto) [skip ci]"
+            git push
+            echo "pushed=true" >> $GITHUB_OUTPUT
+          else
+            echo "No changes to commit."
+            echo "pushed=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Summary
+        run: |
+          echo "Pushed: ${{ steps.commit.outputs.pushed }}"
